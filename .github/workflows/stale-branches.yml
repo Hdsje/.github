@@ -9,9 +9,10 @@ permissions:
 jobs:
   cleanup:
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -19,16 +20,27 @@ jobs:
         run: |
           STALE_DAYS=30
           DELETED=0
-          for branch in $(git branch -r --format='%(refname:short)' | grep -v 'origin/main\|origin/HEAD'); do
+          PROTECTED="main|develop|release"
+
+          for branch in $(git branch -r --format='%(refname:short)' | grep -v "origin/HEAD"); do
             BRANCH_NAME=${branch#origin/}
+
+            # Пропускаем защищённые ветки
+            if echo "$BRANCH_NAME" | grep -qE "^($PROTECTED)"; then
+              continue
+            fi
+
             LAST_COMMIT=$(git log -1 --format='%ci' "$branch" 2>/dev/null || echo "")
             [ -z "$LAST_COMMIT" ] && continue
+
             DAYS_AGO=$(( ($(date +%s) - $(date -d "$LAST_COMMIT" +%s 2>/dev/null || echo "0")) / 86400 ))
+
             if [ $DAYS_AGO -gt $STALE_DAYS ]; then
               MERGED=$(git branch -r --merged origin/main | grep "$branch" || echo "")
               if [ -n "$MERGED" ]; then
+                echo "🗑️ Удаляю: $BRANCH_NAME (${DAYS_AGO} дней, смержена)"
                 git push origin --delete "$BRANCH_NAME" 2>/dev/null && DELETED=$((DELETED + 1)) || true
               fi
             fi
           done
-          echo "Удалено: $DELETED веток"
+          echo "✅ Удалено: $DELETED веток"

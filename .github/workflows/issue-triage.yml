@@ -9,6 +9,7 @@ permissions:
 jobs:
   triage:
     runs-on: self-hosted
+    timeout-minutes: 5
     steps:
       - name: 🏷️ Авто-лейблы
         uses: actions/github-script@v7

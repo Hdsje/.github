@@ -9,19 +9,21 @@ permissions:
 jobs:
   changelog:
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: main
 
       - name: 📝 Генерация
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          PR_NUM="${{ github.event.pull_request.number }}"
-          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
-          PR_URL="${{ github.event.pull_request.html_url }}"
           DATE=$(date '+%Y-%m-%d %H:%M')
 
           if echo "$PR_TITLE" | grep -qi "^feat"; then TYPE="✨ Добавлено"
@@ -32,7 +34,15 @@ jobs:
           ENTRY="- ${TYPE}: ${PR_TITLE} ([#${PR_NUM}](${PR_URL})) by @${PR_AUTHOR}"
 
           if [ -f CHANGELOG.md ]; then
-            sed -i "1a\\\n## [${DATE}]\n${ENTRY}\n" CHANGELOG.md
+            # Безопасная вставка через temp file
+            {
+              head -1 CHANGELOG.md
+              echo ""
+              echo "## [${DATE}]"
+              echo "$ENTRY"
+              echo ""
+              tail -n +2 CHANGELOG.md
+            } > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
           else
             printf '# Changelog\n\n## [%s]\n%s\n' "$DATE" "$ENTRY" > CHANGELOG.md
           fi

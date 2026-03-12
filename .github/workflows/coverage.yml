@@ -10,12 +10,19 @@ permissions:
 jobs:
   coverage:
     runs-on: self-hosted
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
       - name: Установка
         run: npm ci
 
       - name: 🧪 Тесты с coverage
-        run: npx jest --coverage --coverageReporters='text-summary' 2>&1 || true
+        run: npx jest --coverage --coverageReporters='text-summary'

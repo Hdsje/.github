@@ -1,4 +1,4 @@
-name: Security Scan (OWASP ZAP)
+name: Security Scan
 
 on:
   workflow_call:
@@ -16,26 +16,46 @@ permissions:
 jobs:
   scan:
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
-      - name: 🔐 ZAP Baseline Scan
+      - name: 🔐 Security Headers Check
+        env:
+          TARGET: ${{ inputs.target_url }}
         run: |
-          TARGET="${{ inputs.target_url }}"
-          echo "=== OWASP ZAP Scan: $TARGET ==="
-          
-          # Простой скан заголовков безопасности
+          echo "=== Security Headers: $TARGET ==="
+
           HEADERS=$(curl -sI "$TARGET" 2>/dev/null || echo "")
-          
+          if [ -z "$HEADERS" ]; then
+            echo "⚠️ Не удалось подключиться к $TARGET"
+            exit 0
+          fi
+
           ISSUES=""
-          echo "$HEADERS" | grep -qi "x-frame-options" || ISSUES="${ISSUES}❌ X-Frame-Options отсутствует\n"
-          echo "$HEADERS" | grep -qi "x-content-type-options" || ISSUES="${ISSUES}❌ X-Content-Type-Options отсутствует\n"
-          echo "$HEADERS" | grep -qi "strict-transport-security" || ISSUES="${ISSUES}⚠️ HSTS отсутствует\n"
-          echo "$HEADERS" | grep -qi "content-security-policy" || ISSUES="${ISSUES}⚠️ CSP отсутствует\n"
-          
-          if [ -n "$ISSUES" ]; then
-            echo -e "Найдены проблемы:\n$ISSUES"
+          FOUND=0
+
+          check_header() {
+            if echo "$HEADERS" | grep -qi "$1"; then
+              echo "✅ $1"
+            else
+              echo "❌ $1 отсутствует"
+              ISSUES="${ISSUES}❌ $1\n"
+              FOUND=$((FOUND + 1))
+            fi
+          }
+
+          check_header "x-frame-options"
+          check_header "x-content-type-options"
+          check_header "strict-transport-security"
+          check_header "content-security-policy"
+          check_header "x-xss-protection"
+          check_header "referrer-policy"
+
+          echo ""
+          if [ $FOUND -gt 0 ]; then
+            echo "⚠️ Найдено $FOUND проблем с заголовками безопасности"
           else
             echo "✅ Все заголовки безопасности на месте"
           fi
